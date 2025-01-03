@@ -1,7 +1,7 @@
 import type GoogleTasksPlugin from "../GoogleTasksPlugin";
 import type { Task } from "../helper/types";
 import { getGoogleAuthToken } from "./GoogleAuth";
-import { getOneTaskById } from "./ListAllTasks";
+import { getOneTaskById } from "./GoogleTask";
 import { createNotice } from "src/helper/NoticeHelper";
 
 //=======================================
@@ -12,8 +12,7 @@ export async function GoogleCompleteTask(
 	plugin: GoogleTasksPlugin,
 	task: Task
 ): Promise<boolean> {
-
-	task.children?.forEach(subTask => GoogleCompleteTask(plugin,subTask))
+	task.children?.forEach((subTask) => GoogleCompleteTask(plugin, subTask));
 
 	const requestHeaders: HeadersInit = new Headers();
 	requestHeaders.append(
@@ -24,29 +23,32 @@ export async function GoogleCompleteTask(
 
 	task.status = "completed";
 	task.completed = new Date().toISOString();
-	delete task.taskListName;
 
 	try {
-		const response = await fetch(task.selfLink,
-			{
-				method: "PUT",
-				headers: requestHeaders,
-				body: JSON.stringify(task),
-			}
-		);
+		const response = await fetch(task.selfLink, {
+			method: "PUT",
+			headers: requestHeaders,
+			body: JSON.stringify(task),
+		});
+		if (!response.ok)
+			throw (await response.json())?.error ?? response.status;
 		await response.json();
 	} catch (error) {
 		createNotice(plugin, "Could not complete task");
 		return false;
 	}
+
+	task.children?.forEach((subTask) => GoogleCompleteTask(plugin, subTask));
+
 	return true;
 }
 
 export async function GoogleCompleteTaskById(
 	plugin: GoogleTasksPlugin,
-	taskId: string
+	taskId: string,
+	listId: string
 ): Promise<boolean> {
-	const task = await getOneTaskById(plugin, taskId);
+	const task = await getOneTaskById(plugin, listId, taskId);
 	return await GoogleCompleteTask(plugin, task);
 }
 
@@ -58,7 +60,6 @@ export async function GoogleUnCompleteTask(
 	plugin: GoogleTasksPlugin,
 	task: Task
 ): Promise<boolean> {
-
 	const requestHeaders: HeadersInit = new Headers();
 	requestHeaders.append(
 		"Authorization",
@@ -67,32 +68,31 @@ export async function GoogleUnCompleteTask(
 	requestHeaders.append("Content-Type", "application/json");
 
 	task.status = "needsAction";
-	delete task.completed;
-	delete task.taskListName;
 
 	try {
-		const response = await fetch(task.selfLink,
-			{
-				method: "PUT",
-				headers: requestHeaders,
-				body: JSON.stringify(task),
-			}
-		);
+		const response = await fetch(task.selfLink, {
+			method: "PUT",
+			headers: requestHeaders,
+			body: JSON.stringify(task),
+		});
+		if (!response.ok)
+			throw (await response.json())?.error ?? response.status;
 		await response.json();
 	} catch (error) {
 		createNotice(plugin, "Could not complete task");
 		return false;
 	}
 
-	task.children?.forEach(subTask => GoogleUnCompleteTask(plugin,subTask))
+	task.children?.forEach((subTask) => GoogleUnCompleteTask(plugin, subTask));
 
 	return true;
 }
 
 export async function GoogleUnCompleteTaskById(
 	plugin: GoogleTasksPlugin,
+	listId: string,
 	taskId: string
 ): Promise<boolean> {
-	const task = await getOneTaskById(plugin, taskId);
+	const task = await getOneTaskById(plugin, listId, taskId);
 	return await GoogleUnCompleteTask(plugin, task);
 }

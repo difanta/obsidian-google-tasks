@@ -10,7 +10,6 @@ import {
 import { customSetting } from "../helper/CustomSettingElement";
 import { LoginGoogle } from "../googleApi/GoogleAuth";
 import type GoogleTasks from "../GoogleTasksPlugin";
-import { GoogleTaskView, VIEW_TYPE_GOOGLE_TASK } from "./GoogleTaskView";
 import { getRT, setAT, setET, setRT } from "../helper/LocalStorage";
 
 export class GoogleTasksSettingTab extends PluginSettingTab {
@@ -69,7 +68,7 @@ export class GoogleTasksSettingTab extends PluginSettingTab {
 				AuthSetting.addButton((button: ButtonComponent) => {
 					button.setButtonText("Login");
 					button.onClick(async (event) => {
-						if (settingsAreCorret(this.plugin)) {
+						if (settingsAreCorrect(this.plugin)) {
 							LoginGoogle(this.plugin);
 						}
 					});
@@ -88,7 +87,7 @@ export class GoogleTasksSettingTab extends PluginSettingTab {
 				AuthSetting.addButton((button: ButtonComponent) => {
 					button.setButtonText("Login");
 					button.onClick(async (event) => {
-						if (settingsAreCorret(this.plugin)) {
+						if (settingsAreCorrect(this.plugin)) {
 							LoginGoogle(this.plugin);
 
 							let count = 0;
@@ -127,17 +126,6 @@ export class GoogleTasksSettingTab extends PluginSettingTab {
 		}
 
 		new Setting(containerEl)
-			.setName("Confirmations")
-			.setDesc("Ask for confirmations when deleting a task")
-			.addToggle((toggle) => {
-				toggle.setValue(this.plugin.settings.askConfirmation);
-				toggle.onChange(async (state) => {
-					this.plugin.settings.askConfirmation = state;
-					await this.plugin.saveSettings();
-				});
-			});
-
-		new Setting(containerEl)
 			.setName("Notifications")
 			.setDesc("Show notifications of info and errors")
 			.addToggle((toggle) => {
@@ -162,13 +150,6 @@ export class GoogleTasksSettingTab extends PluginSettingTab {
 			this.plugin.settings.refreshInterval = parseInt(
 				RefreshIntervalInput.value
 			);
-			this.app.workspace
-				.getLeavesOfType(VIEW_TYPE_GOOGLE_TASK)
-				.forEach((leaf) => {
-					if (leaf.view instanceof GoogleTaskView) {
-						leaf.view.setRefreshInterval();
-					}
-				});
 			await this.plugin.saveSettings();
 		});
 	}
@@ -188,7 +169,7 @@ export function settingsAreComplete(
 	return true;
 }
 
-export function settingsAreCorret(plugin: GoogleTasks): boolean {
+export function settingsAreCorrect(plugin: GoogleTasks): boolean {
 	if (
 		/^[0-9a-zA-z-]*\.apps\.googleusercontent\.com$/.test(
 			plugin.settings.googleClientId

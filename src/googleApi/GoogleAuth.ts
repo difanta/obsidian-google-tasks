@@ -14,6 +14,12 @@ import {
 } from "../helper/LocalStorage";
 import { Notice, Platform } from "obsidian";
 
+import { OAuth2Client } from "google-auth-library";
+import http from "http";
+import open from "open";
+import url from "url";
+import destroyer from "server-destroy";
+
 export async function getGoogleAuthToken(plugin: GoogleTasks): Promise<string> {
 	if (!settingsAreCompleteAndLoggedIn(plugin)) return;
 
@@ -30,7 +36,8 @@ export async function getGoogleAuthToken(plugin: GoogleTasks): Promise<string> {
 				grant_type: "refresh_token",
 				refresh_token: getRT(),
 			};
-			const response = await fetch("https://oauth2.googleapis.com/token",
+			const response = await fetch(
+				"https://oauth2.googleapis.com/token",
 				{
 					method: "POST",
 					body: JSON.stringify(refreshBody),
@@ -50,11 +57,6 @@ export async function getGoogleAuthToken(plugin: GoogleTasks): Promise<string> {
 export async function LoginGoogle(plugin: GoogleTasks) {
 	if (Platform.isDesktop) {
 		if (!settingsAreComplete(plugin)) return;
-		const { OAuth2Client } = require("google-auth-library");
-		const http = require("http");
-		const open = require("open");
-		const url = require("url");
-		const destroyer = require("server-destroy");
 		const oAuth2Client = new OAuth2Client(
 			plugin.settings.googleClientId,
 			plugin.settings.googleClientSecret,
@@ -63,7 +65,7 @@ export async function LoginGoogle(plugin: GoogleTasks) {
 		const authorizeUrl = oAuth2Client.generateAuthUrl({
 			scope: "https://www.googleapis.com/auth/tasks",
 			access_type: "offline",
-			prompt: "consent"
+			prompt: "consent",
 		});
 
 		const server = http

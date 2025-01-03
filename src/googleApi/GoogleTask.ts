@@ -1,12 +1,12 @@
 import { getGoogleAuthToken } from "./GoogleAuth";
 import type GoogleTasks from "../GoogleTasksPlugin";
-import { createNotice } from "src/helper/NoticeHelper";
+import type { Task } from "../helper/types";
 
-export async function DeleteGoogleTask(
+export async function getOneTaskById(
 	plugin: GoogleTasks,
-	selfLink: string,
-	showNotice = true
-): Promise<boolean> {
+	listId: string,
+	taskId: string
+): Promise<Task | null> {
 	const requestHeaders: HeadersInit = new Headers();
 	requestHeaders.append(
 		"Authorization",
@@ -15,24 +15,20 @@ export async function DeleteGoogleTask(
 	requestHeaders.append("Content-Type", "application/json");
 
 	try {
-		const response = await fetch(selfLink, {
-			method: "DELETE",
-			headers: requestHeaders,
-		});
-
+		const response = await fetch(
+			`https://tasks.googleapis.com/tasks/v1/lists/${listId}/tasks/${taskId}`,
+			{
+				method: "GET",
+				headers: requestHeaders,
+			}
+		);
 		if (!response.ok)
 			throw (await response.json())?.error ?? response.status;
 
-		if (response.status == 204) {
-			if (showNotice) {
-				createNotice(plugin, "Task updated");
-			}
-			return true;
-		} else {
-			return false;
-		}
+		const task: Task = await response.json();
+		return task;
 	} catch (error) {
 		console.error(error);
-		return false;
+		return null;
 	}
 }

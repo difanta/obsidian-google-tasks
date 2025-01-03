@@ -6,8 +6,6 @@ export function createNotice(
 	text: string,
 	showNotice = true
 ) {
-	
-
 	if (plugin.settings.showNotice && showNotice) {
 		new Notice(text);
 	}

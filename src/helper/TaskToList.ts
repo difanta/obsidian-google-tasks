@@ -1,9 +1,13 @@
-import type { Task } from 'src/helper/types';
+import type { LocalTask } from "src/helper/types";
 
-export const taskToList = (task: Task): string => {
-    let date = "-----------";
-    if (task.due) {
-        date = window.moment.utc(task.due).local().format("YYYY-MM-DD");
-    }
-	return `- [${task.status=="completed"? "x": " "}] ${date} ${task.title}  %%${task.id}%%\n`;
-}
+export const taskToList = (task: LocalTask): string => {
+	const date = task.date_time
+		? window.moment(task.date_time).format("YYYY-MM-DD")
+		: null;
+	const time = task.date_time
+		? window.moment(task.date_time).format("HH:mm:ssZ")
+		: null;
+	return `- [${task.completed ? "x" : " "}] ${task.title} ${
+		date ? `@${date}` : ""
+	} ${time ? `@@${time}` : ""} ^${task.id}\n`;
+};
