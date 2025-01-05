@@ -3,9 +3,10 @@ import type GoogleTasks from "../GoogleTasksPlugin";
 import type {
 	Task,
 	TaskList,
+	TaskListForUpload,
 	TaskListResponse,
-	TaskResponse,
 } from "../helper/types";
+import { createNotice } from "../helper/NoticeHelper";
 
 /**
  * Get all tasklists from account
@@ -75,89 +76,38 @@ export async function getAllTaskLists(
 	}
 }
 
-/**
- * Return all tasks from a tasklist
- */
-export async function getAllTasksFromList(
+export async function updateTaskList(
 	plugin: GoogleTasks,
-	taskListId: string,
-	startDate: moment.Moment = null,
-	endDate: moment.Moment = null
-): Promise<Task[]> {
+	taskList: TaskListForUpload,
+	showNotice: boolean
+): Promise<Task | null> {
+	const requestHeaders: HeadersInit = new Headers();
+	requestHeaders.append(
+		"Authorization",
+		"Bearer " + (await getGoogleAuthToken(plugin))
+	);
+	requestHeaders.append("Content-Type", "application/json");
+
 	try {
-		let resultTaskList: Task[] = [];
-		let allTasksData: TaskResponse = undefined;
-
-		do {
-			let url = `https://tasks.googleapis.com/tasks/v1/lists/${taskListId}/tasks?`;
-			url += "maxResults=100";
-			url += "&showCompleted=true";
-			url += "&showDeleted=false";
-
-			if (startDate && startDate.isValid()) {
-				url += `&dueMin=${startDate
-					.local()
-					.startOf("day")
-					.toISOString()}`;
-			}
-
-			if (
-				endDate &&
-				endDate.isValid() &&
-				endDate.endOf("day").isAfter(startDate, "hour")
-			) {
-				url += `&dueMax=${endDate
-					.add(1, "day")
-					.local()
-					.endOf("day")
-					.toISOString()}`;
-			}
-
-			if (plugin.showHidden) {
-				url += "&showHidden=true";
-			}
-
-			if (allTasksData != undefined) {
-				url += `&pageToken=${allTasksData.nextPageToken}`;
-			}
-
-			const requestHeaders: HeadersInit = new Headers();
-			requestHeaders.append(
-				"Authorization",
-				"Bearer " + (await getGoogleAuthToken(plugin))
-			);
-			requestHeaders.append("Content-Type", "application/json");
-
-			const response = await fetch(url, {
-				method: "GET",
+		const response = await fetch(
+			`https://tasks.googleapis.com/tasks/v1/users/@me/lists/${taskList.id}`,
+			{
+				method: "PATCH",
 				headers: requestHeaders,
-			});
-
-			if (!response.ok)
-				throw (await response.json())?.error ?? response.status;
-
-			allTasksData = await response.json();
-
-			if (allTasksData.items && allTasksData.items.length)
-				resultTaskList.concat(allTasksData.items);
-		} while (allTasksData.nextPageToken);
-
-		resultTaskList.forEach((task: Task) => {
-			task.children = resultTaskList.filter(
-				(foundTask: Task) => foundTask.parent == task.id
-			);
-			if (task.children.length) {
-				task.children.sort(
-					(a: Task, b: Task) =>
-						parseInt(a.position) - parseInt(b.position)
-				);
+				body: JSON.stringify(taskList),
 			}
-		});
+		);
 
-		resultTaskList = resultTaskList.filter((tasks) => !tasks.parent);
-		return resultTaskList;
+		if (response.status == 200) {
+			if (showNotice) createNotice(plugin, "Task list updated");
+			return await response.json();
+		} else {
+			if (showNotice) createNotice(plugin, "Failed to update task list");
+			return null;
+		}
 	} catch (error) {
-		console.error(error);
-		return [];
+		console.log(error);
+		if (showNotice) createNotice(plugin, "Could not update task list");
+		return null;
 	}
 }

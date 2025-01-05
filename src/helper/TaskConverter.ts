@@ -1,4 +1,4 @@
-import {
+import type {
 	LocalTask,
 	LocalTaskList,
 	Task,
@@ -63,4 +63,43 @@ export function GDriveTaskToLocal(gdrive_task: Task): LocalTask {
 		date_time: gdrive_task.due ? new Date(gdrive_task.due) : undefined, // TODO maybe add 12 hours
 		children: gdrive_task.children?.map(GDriveTaskToLocal) ?? [],
 	};
+}
+
+export function isEqualTask(
+	first: TaskForUpload,
+	second: TaskForUpload
+): boolean {
+	// check if the two tasks are equal, disregarding the children
+	return (
+		first.kind === second.kind &&
+		first.id === second.id &&
+		first.title === second.title &&
+		first.notes === second.notes &&
+		first.status === second.status &&
+		first.parent === second.parent &&
+		first.previous === second.previous &&
+		first.due === second.due &&
+		first.links.length === second.links.length &&
+		first.links.every((link, index) => {
+			return (
+				link.type === second.links[index].type &&
+				link.description === second.links[index].description &&
+				link.link === second.links[index].link
+			);
+		})
+	);
+}
+
+export function isEqualLocalTask(first: LocalTask, second: LocalTask): boolean {
+	// check if the two tasks are equal, disregarding the children
+	return (
+		first.id === second.id &&
+		first.title === second.title &&
+		first.description === second.description &&
+		first.completed === second.completed &&
+		first.position === second.position &&
+		first.parent === second.parent &&
+		first.previous === second.previous &&
+		first.date_time === second.date_time
+	);
 }

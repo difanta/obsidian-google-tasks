@@ -20,8 +20,10 @@ import open from "open";
 import url from "url";
 import destroyer from "server-destroy";
 
-export async function getGoogleAuthToken(plugin: GoogleTasks): Promise<string> {
-	if (!settingsAreCompleteAndLoggedIn(plugin)) return;
+export async function getGoogleAuthToken(
+	plugin: GoogleTasks
+): Promise<string | null> {
+	if (!settingsAreCompleteAndLoggedIn(plugin)) return null;
 
 	if (
 		getET() == 0 ||
@@ -81,14 +83,17 @@ export async function LoginGoogle(plugin: GoogleTasks) {
 						res.end(
 							"Authentication successful! Please return to obsidian."
 						);
+						// @ts-ignore
 						server.destroy();
+
+						if (code == null) throw new Error("No code provided.");
 
 						// Now that we have the code, use that to acquire tokens.
 						const r = await oAuth2Client.getToken(code);
 
-						setRT(r.tokens.refresh_token);
-						setAT(r.tokens.access_token);
-						setET(r.tokens.expiry_date);
+						setRT(r.tokens.refresh_token as string);
+						setAT(r.tokens.access_token as string);
+						setET(r.tokens.expiry_date as number);
 
 						console.info("Tokens acquired.");
 					}

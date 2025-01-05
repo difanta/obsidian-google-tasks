@@ -1,6 +1,10 @@
 import { TFile } from "obsidian";
 import GoogleTasks from "../GoogleTasksPlugin";
-import { GoogleTasksSettings, LocalTask, LocalTaskList } from "../helper/types";
+import type {
+	GoogleTasksSettings,
+	LocalTask,
+	LocalTaskList,
+} from "../helper/types";
 
 const LIST_MATCHER = /# [a-z, A-Z]+ \^([a-z,A-Z,0-9]+)/g;
 

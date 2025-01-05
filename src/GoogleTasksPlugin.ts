@@ -1,19 +1,11 @@
 import { getRT } from "./helper/LocalStorage";
-import {
-	Editor,
-	MarkdownView,
-	Plugin,
-	WorkspaceLeaf,
-	Notice,
-	TFile,
-} from "obsidian";
+import { Plugin, Notice, type EventRef } from "obsidian";
 import type { GoogleTasksSettings } from "./helper/types";
 import { getAllTaskLists } from "./googleApi/GoogleTaskList";
 import {
 	GoogleTasksSettingTab,
 	settingsAreCompleteAndLoggedIn,
 } from "./view/GoogleTasksSettingTab";
-import { normalize } from "path";
 import { FullScan } from "./helper/FileScanner";
 import { SynchronizeAllFiles } from "./helper/Synchronizer";
 
@@ -27,26 +19,15 @@ const DEFAULT_SETTINGS: GoogleTasksSettings = {
 };
 
 export default class GoogleTasks extends Plugin {
+	//@ts-ignore
 	settings: GoogleTasksSettings;
+	//@ts-ignore
 	plugin: GoogleTasks;
 	showHidden = false;
-	openEvent: null;
+	//@ts-ignore
+	openEvent: EventRef;
 
-	onLayoutReady = async () => {
-		this.app.workspace.on("file-open", async (file: TFile) => {
-			if (!file || file.extension !== "md") return;
-			let content = await this.app.vault.adapter.read(
-				normalize(file.path)
-			);
-			if (!content.match("%%")) {
-				return;
-			}
-
-			const matches = [
-				...content.matchAll(/\- \[[ xX]\] .* %%[A-Za-z0-9]{22}%%/g),
-			];
-		});
-	};
+	onLayoutReady = async () => {};
 
 	async onload() {
 		await this.loadSettings();

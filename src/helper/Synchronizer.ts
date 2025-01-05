@@ -1,14 +1,15 @@
 import { createNotice } from "./NoticeHelper";
 import GoogleTasks from "../GoogleTasksPlugin";
-import { getAllTasksFromList, getTaskList } from "../googleApi/GoogleTaskList";
+import { getTaskList, updateTaskList } from "../googleApi/GoogleTaskList";
 import { dumpListToFile, extractListFromFile } from "./FileScanner";
 import {
 	GDriveTaskListToLocal,
 	GDriveTaskToLocal,
+	isEqualTask,
 	LocalTaskListToGDrive,
 	LocalTaskToGDrive,
 } from "./TaskConverter";
-import {
+import type {
 	LocalTask,
 	LocalTaskList,
 	Task,
@@ -16,19 +17,32 @@ import {
 	TaskList,
 	TaskListForUpload,
 } from "./types";
+import { getAllTasksFromList } from "../googleApi/GoogleTask";
+import {
+	createTask,
+	deleteTask,
+	moveTask,
+	updateTask,
+} from "../googleApi/GoogleTaskOperations";
 
-export async function SynchronizeAllFiles(plugin: GoogleTasks) {
+export async function SynchronizeAllFiles(
+	plugin: GoogleTasks,
+	showNotice: boolean = true
+) {
 	await Promise.all(
 		[...plugin.settings.synchronized_files.keys()].map(async (file_path) =>
-			SynchronizeFile(plugin, file_path)
+			SynchronizeFile(plugin, file_path, showNotice)
 		)
 	);
 }
 
-export async function SynchronizeFile(plugin: GoogleTasks, file_path: string) {
+export async function SynchronizeFile(
+	plugin: GoogleTasks,
+	file_path: string,
+	showNotice: boolean
+) {
 	try {
 		const file = plugin.settings.synchronized_files.get(file_path);
-		const last_sync = file?.udpated_at;
 		const fs_mod_time =
 			plugin.app.vault.getFileByPath(file_path)?.stat.mtime;
 
@@ -37,6 +51,7 @@ export async function SynchronizeFile(plugin: GoogleTasks, file_path: string) {
 			createNotice(plugin, `File ${file_path} not found`);
 			return;
 		}
+		const last_sync = file.udpated_at;
 
 		// pull all tasks from GDrive and local
 		let any_undefined = false;
@@ -51,8 +66,9 @@ export async function SynchronizeFile(plugin: GoogleTasks, file_path: string) {
 				);
 
 				// set to undefined any task list that does not exist in both gdrive and local
-				if (!g_task_list || !local_task_list) {
+				if (!g_task_list || !local_task_list || !g_tasks) {
 					any_undefined = true;
+					// @ts-ignore
 					file.lists[index] = undefined;
 					return undefined;
 				} else
@@ -78,6 +94,7 @@ export async function SynchronizeFile(plugin: GoogleTasks, file_path: string) {
 		// Synchronize all lists in this file
 		await Promise.all(
 			task_lists.map(async (task_list) => {
+				if (!task_list) return; // useless check but for ts
 				console.log("Google task list", task_list.google_task_list);
 				console.log(
 					"Converted task list",
@@ -95,7 +112,7 @@ export async function SynchronizeFile(plugin: GoogleTasks, file_path: string) {
 				let merged_list: LocalTaskList & {
 					tasks: {
 						local: LocalTask;
-						gdrive: Task | TaskForUpload;
+						gdrive: TaskForUpload;
 					}[];
 					conflicts: Omit<LocalTask, "id">[];
 				};
@@ -177,14 +194,24 @@ export async function SynchronizeFile(plugin: GoogleTasks, file_path: string) {
 				}
 
 				// convert merged (local) list to gdrive version, then select only gdrive tasks and synchronize
-				await SynchronizeListToGDrive(
+				const new_ids = await SynchronizeListToGDrive(
 					plugin,
 					task_list.google_task_list,
 					{
 						...LocalTaskListToGDrive(merged_list),
 						tasks: merged_list.tasks.map((task) => task.gdrive),
-					}
+					},
+					showNotice
 				);
+
+				// update local tasks with new ids
+				/*for (let i = 0; i < new_ids.length; i++) {
+					merged_list.tasks[i].local.id = new_ids[i].id;
+					for (let j = 0; j < new_ids[i].children.length; j++) {
+						merged_list.tasks[i].local.children[j].id =
+							new_ids[i].children[j];
+					}
+				}*/
 
 				// dump merged local list to file
 				await dumpListToFile(plugin, file_path, {
@@ -196,6 +223,7 @@ export async function SynchronizeFile(plugin: GoogleTasks, file_path: string) {
 
 		// upon successful update modify the update timestamp
 		const new_file = plugin.settings.synchronized_files.get(file_path);
+		if (!new_file) throw new Error("File not found");
 		new_file.udpated_at = +new Date();
 		plugin.settings.synchronized_files.set(file_path, new_file);
 		await plugin.saveSettings();
@@ -207,11 +235,16 @@ export async function SynchronizeFile(plugin: GoogleTasks, file_path: string) {
 async function SynchronizeListToGDrive(
 	plugin: GoogleTasks,
 	old_list: TaskList & { tasks: Task[] },
-	new_list: TaskListForUpload & { tasks: TaskForUpload[] }
+	new_list: TaskListForUpload & { tasks: TaskForUpload[] },
+	showNotice: boolean
 ) {
 	if (new_list.title !== old_list.title) {
-		// update task list
+		await updateTaskList(plugin, new_list, showNotice);
 	}
+
+	// unroll the children of the tasks
+	old_list.tasks.concat(old_list.tasks.flatMap((task) => task.children));
+	new_list.tasks.concat(new_list.tasks.flatMap((task) => task.children));
 
 	// outer merge the two lists of tasks
 	const diff_map = new Map<
@@ -225,6 +258,7 @@ async function SynchronizeListToGDrive(
 
 	new_list.tasks.forEach((item) => {
 		if (diff_map.has(item.id)) {
+			// @ts-ignore
 			diff_map.get(item.id).new_task = item;
 		} else {
 			diff_map.set(item.id, { old_task: null, new_task: item });
@@ -235,10 +269,12 @@ async function SynchronizeListToGDrive(
 	// use the merged list of tasks to perform synchronization
 	await Promise.all(
 		diff_array.map(async (diff_task) => {
-			return await SynchronizeTaskToGDrive(
+			await SynchronizeTaskToGDrive(
 				plugin,
 				diff_task.new_task,
-				diff_task.old_task
+				diff_task.old_task,
+				new_list.id,
+				showNotice
 			);
 		})
 	);
@@ -248,45 +284,58 @@ async function SynchronizeListToGDrive(
 async function SynchronizeTaskToGDrive(
 	plugin: GoogleTasks,
 	new_task: TaskForUpload | null,
-	old_task: Task | null
-): Promise<string | null> {
-	let id_changed = false;
+	old_task: Task | null,
+	listId: string,
+	showNotice: boolean
+) {
+	if (!old_task && !new_task) throw new Error("Both tasks are null");
 	if (old_task && !new_task) {
-		// delete
+		const successful = await deleteTask(
+			plugin,
+			old_task,
+			listId,
+			showNotice
+		);
+		if (!successful) throw new Error("Failed to delete task");
 	} else {
 		if (new_task && !old_task) {
 			// create
-			// old_task = create()
-			// if new_task.id != old_task.id, new_task.id = ..., id_changed = true
+			old_task = await createTask(plugin, new_task, listId, showNotice);
+			if (!old_task) throw new Error("Failed to create task");
+			if (new_task.id != old_task.id) new_task.id = old_task.id;
 		}
 
-		if (new_task.status !== old_task.status) {
-			// complete or uncomplete
-			// old_task =
-		}
+		if (!old_task) throw new Error("old_task is null");
+		if (!new_task) throw new Error("new_task is null");
 
-		if (new_task.parent != old_task.parent) {
-			// move to parent
-			// old_task =
-		}
-
-		if (new_task.previous != old_task.previous) {
-			// move inside list
-			// old_task =
+		if (
+			new_task.parent != old_task.parent ||
+			new_task.previous != old_task.previous
+		) {
+			const updated = await moveTask(
+				plugin,
+				new_task,
+				listId,
+				showNotice
+			);
+			if (!updated) throw new Error("Failed to move task");
+			Object.assign(old_task, updated);
 		}
 
 		if (new_task != old_task) {
-			// update (don't update the time unless the date changed!!)
-			// old_task =
+			const updated = await updateTask(
+				plugin,
+				new_task,
+				listId,
+				showNotice
+			);
+			if (!updated) throw new Error("Failed to move task");
+			Object.assign(old_task, updated);
 		}
 
-		// synchronize children, just call recursively??
-
-		if (new_task != old_task) {
+		if (!isEqualTask(new_task, old_task)) {
 			console.log("something was not updated", new_task, old_task);
 			throw new Error("Some changes did not propagate to GDrive");
 		}
 	}
-	if (id_changed) return new_task.id;
-	else return null;
 }
