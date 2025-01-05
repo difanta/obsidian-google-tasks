@@ -1,10 +1,10 @@
 import { createNotice } from "src/helper/NoticeHelper";
 import {
 	PluginSettingTab,
-	App,
+	type App,
 	Setting,
 	Notice,
-	ButtonComponent,
+	type ButtonComponent,
 	Platform,
 } from "obsidian";
 import { customSetting } from "../helper/CustomSettingElement";

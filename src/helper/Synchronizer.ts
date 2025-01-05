@@ -1,5 +1,5 @@
 import { createNotice } from "./NoticeHelper";
-import GoogleTasks from "../GoogleTasksPlugin";
+import type GoogleTasks from "../GoogleTasksPlugin";
 import { getTaskList, updateTaskList } from "../googleApi/GoogleTaskList";
 import { dumpListToFile, extractListFromFile } from "./FileScanner";
 import {
@@ -96,14 +96,12 @@ export async function SynchronizeFile(
 			task_lists.map(async (task_list) => {
 				if (!task_list) return; // useless check but for ts
 				console.log("Google task list", task_list.google_task_list);
-				console.log(
-					"Converted task list",
-					GDriveTaskListToLocal(task_list.google_task_list)
-				);
-				console.log(
-					"Converted tasks",
-					task_list.google_task_list.tasks.map(GDriveTaskToLocal)
-				);
+				console.log("Converted task list", {
+					...GDriveTaskListToLocal(task_list.google_task_list),
+					tasks: task_list.google_task_list.tasks.map(
+						GDriveTaskToLocal
+					),
+				});
 				const last_updated_gdrive_task =
 					task_list.google_task_list.tasks
 						.map((item) => window.moment(item.updated).unix())

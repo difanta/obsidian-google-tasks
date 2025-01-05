@@ -10,7 +10,6 @@ export default defineConfig(({ mode }) => {
 		build: {
 			sourcemap: prod ? false : "inline",
 			minify: prod,
-			watch: !prod,
 			emptyOutDir: false,
 			outDir: "./",
 			lib: {

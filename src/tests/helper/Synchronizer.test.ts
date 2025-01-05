@@ -1,6 +1,14 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import {
+	describe,
+	it,
+	expect,
+	vi,
+	beforeEach,
+	type MockedFunction,
+	type Mock,
+} from "vitest";
 import { SynchronizeFile } from "../../helper/Synchronizer";
-import GoogleTasks from "../../GoogleTasksPlugin";
+import type GoogleTasks from "../../GoogleTasksPlugin";
 import { getTaskList } from "../../googleApi/GoogleTaskList";
 import { getAllTasksFromList } from "../../googleApi/GoogleTask";
 import { extractListFromFile, dumpListToFile } from "../../helper/FileScanner";
@@ -11,30 +19,49 @@ import {
 	moveTask,
 	updateTask,
 } from "../../googleApi/GoogleTaskOperations";
+import type { TaskForUpload } from "../../helper/types";
 
-vi.mock("../googleApi/GoogleTaskList", () => ({
+vi.mock("../../googleApi/GoogleTaskList", () => ({
 	getTaskList: vi.fn(),
 }));
 
-vi.mock("../googleApi/GoogleTask", () => ({
+vi.mock("../../googleApi/GoogleTask", () => ({
 	getAllTasksFromList: vi.fn(),
 }));
 
-vi.mock("./FileScanner", () => ({
+vi.mock("../../helper/FileScanner", () => ({
 	extractListFromFile: vi.fn(),
 	dumpListToFile: vi.fn(),
 }));
 
-vi.mock("../googleApi/GoogleTaskOperations", () => ({
+vi.mock("../../googleApi/GoogleTaskOperations", () => ({
 	createTask: vi.fn(),
 	deleteTask: vi.fn(),
 	moveTask: vi.fn(),
 	updateTask: vi.fn(),
 }));
 
-vi.mock("./NoticeHelper", () => ({
+vi.mock("../../helper/NoticeHelper", () => ({
 	createNotice: vi.fn(),
 }));
+
+const list1 = {
+	kind: "tasks#taskList",
+	id: "list1",
+	etag: '""',
+	title: "Giochi alcolici",
+	updated: "2024-02-23T13:57:11.446Z",
+	selfLink: "https://www.googleapis.com/tasks/v1/users/@me/",
+};
+
+const list2 = {
+	kind: "tasks#taskList",
+	id: "a0NtVUVkZ0Fja3A3eDg4eA",
+	etag: '""',
+	title: "DnD",
+	updated: "2024-10-15T20:52:57.183Z",
+	selfLink: "https://www.googleapis.com/tasks/v1/users/@me/",
+};
 
 describe("SynchronizeFile", () => {
 	let plugin: GoogleTasks;
@@ -95,9 +122,16 @@ describe("SynchronizeFile", () => {
 			.fn()
 			.mockReturnValue({ stat: { mtime: fs_mod_time } });
 
-		getTaskList.mockResolvedValue({});
-		getAllTasksFromList.mockResolvedValue([]);
-		extractListFromFile.mockResolvedValue({});
+		(getTaskList as Mock<typeof getTaskList>).mockResolvedValue(list1);
+		(
+			getAllTasksFromList as Mock<typeof getAllTasksFromList>
+		).mockResolvedValue([]);
+		(
+			extractListFromFile as Mock<typeof extractListFromFile>
+		).mockResolvedValue({
+			...list1,
+			tasks: [],
+		});
 
 		await SynchronizeFile(plugin, file_path, showNotice);
 
@@ -108,21 +142,28 @@ describe("SynchronizeFile", () => {
 		expect(plugin.saveSettings).toHaveBeenCalled();
 	});
 
-	it("should handle task list synchronization correctly", async () => {
+	it("does not call anything when updated at is gt than modified and fs mod time", async () => {
 		const file = {
 			lists: ["list1", "list2"],
-			udpated_at: 123456789,
+			udpated_at: 100,
 		};
-		const fs_mod_time = 987654321;
+		const fs_mod_time = 10;
 
 		plugin.settings.synchronized_files.set(file_path, file);
 		plugin.app.vault.getFileByPath = vi
 			.fn()
 			.mockReturnValue({ stat: { mtime: fs_mod_time } });
 
-		getTaskList.mockResolvedValue({});
-		getAllTasksFromList.mockResolvedValue([]);
-		extractListFromFile.mockResolvedValue({});
+		(getTaskList as Mock<typeof getTaskList>).mockResolvedValue(list1);
+		(
+			getAllTasksFromList as Mock<typeof getAllTasksFromList>
+		).mockResolvedValue([]);
+		(
+			extractListFromFile as Mock<typeof extractListFromFile>
+		).mockResolvedValue({
+			...list1,
+			tasks: [],
+		});
 
 		await SynchronizeFile(plugin, file_path, showNotice);
 
